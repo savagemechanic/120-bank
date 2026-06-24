@@ -47,10 +47,15 @@ afterEach(() => {
 
 describe("Dashboard", () => {
   it("renders the review board with fetched ideas", async () => {
+    const ideas = Array.from({ length: 5 }, (_, index) => ({
+      ...idea,
+      id: `${idea.id}-${index}`,
+      title: index === 0 ? idea.title : `${idea.title} ${index + 1}`
+    }));
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({
-        items: [idea],
+        items: ideas,
         nextCursor: null
       })
     }));
@@ -62,5 +67,6 @@ describe("Dashboard", () => {
     expect(await screen.findByText("The Receipt Test")).toBeInTheDocument();
     expect(screen.getByText("120 Bank")).toBeInTheDocument();
     expect(screen.getAllByText("Pending Review").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("pipeline-list-pending_review")).toHaveClass("max-h-[47.75rem]", "overflow-y-auto");
   });
 });

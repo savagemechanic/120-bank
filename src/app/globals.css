@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 * {
@@ -12,14 +12,16 @@
 
 html {
   min-height: 100%;
-  background: #f5f6f3;
+  background: #090b10;
 }
 
 body {
   min-height: 100%;
   margin: 0;
-  background: #f5f6f3;
-  color: #18202f;
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.10), transparent 32rem),
+    #090b10;
+  color: #e5e7eb;
 }
 
 button,
@@ -31,6 +33,6 @@ textarea {
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #0f766e;
+  outline: 2px solid #2dd4bf;
   outline-offset: 2px;
 }

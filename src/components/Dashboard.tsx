@@ -87,6 +87,19 @@ function groupIdeas(ideas: Idea[]) {
   );
 }
 
+async function fetchIdeasByStatus(status: IdeaStatus, activeToken: string) {
+  const response = await fetch(`/api/ideas?status=${status}&limit=100`, {
+    headers: authHeaders(activeToken)
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message ?? `Could not load ${STATUS_LABELS[status].toLowerCase()} ideas.`);
+  }
+
+  return payload.items as Idea[];
+}
+
 export function Dashboard({ initialToken = "" }: DashboardProps) {
   const [tokenInput, setTokenInput] = useState(initialToken);
   const [token, setToken] = useState(initialToken);
@@ -116,17 +129,16 @@ export function Dashboard({ initialToken = "" }: DashboardProps) {
       setLoading(true);
 
       try {
-        const response = await fetch("/api/ideas?limit=100", {
-          headers: authHeaders(activeToken)
-        });
+        const results = await Promise.all(
+          IDEA_STATUSES.map((status) => fetchIdeasByStatus(status, activeToken))
+        );
+        const uniqueIdeas = new Map<string, Idea>();
 
-        const payload = await response.json();
-
-        if (!response.ok) {
-          throw new Error(payload.error?.message ?? "Could not load ideas.");
+        for (const idea of results.flat()) {
+          uniqueIdeas.set(idea.id, idea);
         }
 
-        setIdeas(payload.items);
+        setIdeas(Array.from(uniqueIdeas.values()));
       } catch (error) {
         showToast({
           type: "error",

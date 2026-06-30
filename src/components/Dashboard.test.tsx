@@ -52,19 +52,37 @@ describe("Dashboard", () => {
       id: `${idea.id}-${index}`,
       title: index === 0 ? idea.title : `${idea.title} ${index + 1}`
     }));
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        items: ideas,
-        nextCursor: null
-      })
-    }));
+    const approvedIdea: Idea = {
+      ...idea,
+      id: "approved-idea",
+      status: "approved",
+      title: "Approved Shoot Brief",
+      reviewedBy: "CHIBUEZE_AGENT",
+      reviewedAt: new Date().toISOString(),
+      approvedBy: "HUMAN_REVIEWER",
+      approvedAt: new Date().toISOString()
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "http://localhost");
+      const status = url.searchParams.get("status");
+      const items =
+        status === "pending_review" ? ideas : status === "approved" ? [approvedIdea] : [];
+
+      return {
+        ok: true,
+        json: async () => ({
+          items,
+          nextCursor: null
+        })
+      };
+    });
 
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Dashboard initialToken="human-token" />);
 
     expect(await screen.findByText("The Receipt Test")).toBeInTheDocument();
+    expect(screen.getByText("Approved Shoot Brief")).toBeInTheDocument();
     expect(screen.getByText("120 Bank")).toBeInTheDocument();
     expect(screen.getAllByText("Pending Review").length).toBeGreaterThan(0);
     expect(screen.getByTestId("pipeline-list-pending_review")).toHaveClass("max-h-[47.75rem]", "overflow-y-auto");

@@ -13,6 +13,8 @@ interface DashboardProps {
   initialToken?: string;
 }
 
+type StatusFilter = IdeaStatus | "all";
+
 function authHeaders(token: string) {
   return {
     "x-review-token": token,
@@ -104,6 +106,7 @@ export function Dashboard({ initialToken = "" }: DashboardProps) {
   const [tokenInput, setTokenInput] = useState(initialToken);
   const [token, setToken] = useState(initialToken);
   const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [activeStatus, setActiveStatus] = useState<StatusFilter>("all");
   const [selected, setSelected] = useState<Idea | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -114,6 +117,7 @@ export function Dashboard({ initialToken = "" }: DashboardProps) {
   const approvedCount = grouped.approved.length;
   const pendingCount = grouped.pending_review.length;
   const reviewedCount = grouped.reviewed.length;
+  const visibleStatuses = activeStatus === "all" ? IDEA_STATUSES : [activeStatus];
 
   const showToast = useCallback((next: ToastState) => {
     setToast(next);
@@ -129,16 +133,49 @@ export function Dashboard({ initialToken = "" }: DashboardProps) {
       setLoading(true);
 
       try {
-        const results = await Promise.all(
+        const results = await Promise.allSettled(
           IDEA_STATUSES.map((status) => fetchIdeasByStatus(status, activeToken))
         );
         const uniqueIdeas = new Map<string, Idea>();
+        const loadedStatuses = new Set<IdeaStatus>();
+        const failedStatuses: string[] = [];
 
-        for (const idea of results.flat()) {
-          uniqueIdeas.set(idea.id, idea);
+        results.forEach((result, index) => {
+          const status = IDEA_STATUSES[index];
+
+          if (result.status === "fulfilled") {
+            loadedStatuses.add(status);
+
+            for (const idea of result.value) {
+              uniqueIdeas.set(idea.id, idea);
+            }
+          } else {
+            failedStatuses.push(STATUS_LABELS[status]);
+          }
+        });
+
+        setIdeas((currentIdeas) => {
+          for (const idea of currentIdeas) {
+            if (!loadedStatuses.has(idea.status)) {
+              uniqueIdeas.set(idea.id, idea);
+            }
+          }
+
+          return Array.from(uniqueIdeas.values()).sort((a, b) => {
+            if (a.createdAt === b.createdAt) {
+              return b.id.localeCompare(a.id);
+            }
+
+            return b.createdAt.localeCompare(a.createdAt);
+          });
+        });
+
+        if (failedStatuses.length) {
+          showToast({
+            type: "error",
+            message: `Some lists could not load: ${failedStatuses.join(", ")}.`
+          });
         }
-
-        setIdeas(Array.from(uniqueIdeas.values()));
       } catch (error) {
         showToast({
           type: "error",
@@ -338,8 +375,43 @@ export function Dashboard({ initialToken = "" }: DashboardProps) {
         </button>
       </header>
 
-      <section className="grid gap-3 xl:grid-cols-5">
-        {IDEA_STATUSES.map((status) => (
+      <section
+        aria-label="Status filter"
+        className="mb-4 flex gap-2 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2"
+      >
+        {[
+          { value: "all" as const, label: "All", count: ideas.length },
+          ...IDEA_STATUSES.map((status) => ({
+            value: status,
+            label: STATUS_LABELS[status],
+            count: grouped[status].length
+          }))
+        ].map((filter) => (
+          <button
+            key={filter.value}
+            type="button"
+            onClick={() => setActiveStatus(filter.value)}
+            aria-pressed={activeStatus === filter.value}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition ${
+              activeStatus === filter.value
+                ? "border-teal-300 bg-teal-400 text-zinc-950"
+                : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800"
+            }`}
+          >
+            <span>{filter.label}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                activeStatus === filter.value ? "bg-zinc-950/15 text-zinc-950" : "bg-zinc-950 text-zinc-400"
+              }`}
+            >
+              {filter.count}
+            </span>
+          </button>
+        ))}
+      </section>
+
+      <section className={`grid gap-3 ${activeStatus === "all" ? "xl:grid-cols-5" : "lg:grid-cols-2 xl:grid-cols-3"}`}>
+        {visibleStatuses.map((status) => (
           <div key={status} className="rounded-lg border border-zinc-800 bg-zinc-950/60">
             <div className="flex items-center justify-between rounded-t-lg border-b border-zinc-800 bg-zinc-950 px-3 py-3">
               <h2 className="text-sm font-semibold text-zinc-100">{STATUS_LABELS[status]}</h2>

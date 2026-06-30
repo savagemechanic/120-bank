@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Dashboard } from "@/components/Dashboard";
@@ -86,5 +86,54 @@ describe("Dashboard", () => {
     expect(screen.getByText("120 Bank")).toBeInTheDocument();
     expect(screen.getAllByText("Pending Review").length).toBeGreaterThan(0);
     expect(screen.getByTestId("pipeline-list-pending_review")).toHaveClass("max-h-[47.75rem]", "overflow-y-auto");
+
+    fireEvent.click(screen.getByRole("button", { name: /approved 1/i }));
+
+    expect(screen.getByText("Approved Shoot Brief")).toBeInTheDocument();
+    expect(screen.queryByText("The Receipt Test")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pipeline-list-pending_review")).not.toBeInTheDocument();
+  });
+
+  it("keeps approved ideas visible when another status list fails", async () => {
+    const approvedIdea: Idea = {
+      ...idea,
+      id: "approved-idea",
+      status: "approved",
+      title: "Approved Shoot Brief",
+      reviewedBy: "CHIBUEZE_AGENT",
+      reviewedAt: new Date().toISOString(),
+      approvedBy: "HUMAN_REVIEWER",
+      approvedAt: new Date().toISOString()
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "http://localhost");
+      const status = url.searchParams.get("status");
+
+      if (status === "reviewed") {
+        return {
+          ok: false,
+          json: async () => ({
+            error: {
+              message: "Reviewed list unavailable."
+            }
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          items: status === "approved" ? [approvedIdea] : [],
+          nextCursor: null
+        })
+      };
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Dashboard initialToken="human-token" />);
+
+    expect(await screen.findByText("Approved Shoot Brief")).toBeInTheDocument();
+    expect(await screen.findByText("Some lists could not load: Reviewed.")).toBeInTheDocument();
   });
 });
